@@ -1,14 +1,14 @@
 #/bin/bash
 echo
 echo
-echo "本脚本仅适用于在Ubuntu环境下编译 https://github.com/kiddin9/OpenWrt_x86-r2s-r4s"
+echo "本脚本仅适用于在Ubuntu环境下编译 https://github.com/garypang13/Actions-OpenWrt"
 echo
 echo
 sleep 2s
 sudo apt-get update
 sudo apt-get upgrade
 
-sudo apt-get -y install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev patch python3 python2.7 unzip zlib1g-dev lib32gcc-s1 libc6-dev-i386 subversion flex uglifyjs gcc-multilib g++-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils libelf-dev autoconf automake libtool autopoint device-tree-compiler ccache xsltproc rename antlr3 gperf curl screen upx-ucl jq
+sudo apt-get -y install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs gcc-multilib g++-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler ccache xsltproc rename antlr3 gperf curl screen
 
 
 
@@ -40,18 +40,28 @@ fi
 
 
 rm -Rf openwrt
-
+git clone -b master --depth 1 https://github.com/openwrt/openwrt
+svn co https://github.com/garypang13/Actions-OpenWrt/trunk/devices openwrt/devices
+cd openwrt
 echo "
 
 1. X86_64
 
-2. r2s
+2. K2p
 
-3. r4s
+3. RedMi_AC2100
 
-4. Rpi-4B
+4. r2s
 
-5. Exit
+5. newifi-d2
+
+6. hiwifi-hc5962
+
+7. XY-C5
+
+8. phicomm-N1
+
+9. Exit
 
 "
 
@@ -65,35 +75,39 @@ case $CHOOSE in
 	break
 	;;
 	2)
-		firmware="nanopi-r2s"
+		firmware="phicomm-k2p"
 	break
 	;;
 	3)
-		firmware="nanopi-r4s"
+		firmware="redmi-ac2100"
 	break
 	;;
 	4)
-		firmware="Rpi-4B"
+		firmware="nanopi-r2s"
 	break
 	;;
-	5)	exit 0
+	5)
+		firmware="newifi-d2"
+	break
+	;;
+	6)
+		firmware="hiwifi-hc5962"
+	break
+	;;
+	7)
+		firmware="XY-C5"
+	break
+	;;
+	8)
+		firmware="phicomm-N1"
+		make menuconfig
+	break
+	;;
+	9)	exit 0
 	;;
 
 esac
 done
-
-REPO_BRANCH="$(curl -s https://api.github.com/repos/openwrt/openwrt/tags | jq -r '.[].name' | grep v21 | head -n 1 | sed -e 's/v//')"
-git clone -b v$REPO_BRANCH https://github.com/openwrt/openwrt
-svn export https://github.com/kiddin9/OpenWrt_x86-r2s-r4s/trunk/devices openwrt/devices
-
-cd openwrt
-if [[ $firmware == "x86_64" ]]; then
-	curl -fL -o sdk.tar.xz https://mirrors.cloud.tencent.com/openwrt/releases/$REPO_BRANCH/targets/x86/64/openwrt-sdk-$REPO_BRANCH-x86-64_gcc-8.4.0_musl.Linux-x86_64.tar.xz || curl -fL -o sdk.tar.xz https://downloads.openwrt.org/releases/21.02-SNAPSHOT/targets/x86/64/openwrt-sdk-21.02-SNAPSHOT-x86-64_gcc-8.4.0_musl.Linux-x86_64.tar.xz
-elif [[ $firmware == nanopi-* ]]; then
-	curl -fL -o sdk.tar.xz https://mirrors.cloud.tencent.com/openwrt/releases/$REPO_BRANCH/targets/rockchip/armv8/openwrt-sdk-$REPO_BRANCH-rockchip-armv8_gcc-8.4.0_musl.Linux-x86_64.tar.xz || curl -fL -o sdk.tar.xz https://downloads.openwrt.org/releases/21.02-SNAPSHOT/targets/rockchip/armv8/openwrt-sdk-21.02-SNAPSHOT-rockchip-armv8_gcc-8.4.0_musl.Linux-x86_64.tar.xz
-elif [[ $firmware == "Rpi-4B" ]]; then
-	curl -fL -o sdk.tar.xz https://mirrors.cloud.tencent.com/openwrt/releases/$REPO_BRANCH/targets/bcm27xx/bcm2711/openwrt-sdk-$REPO_BRANCH-bcm27xx-bcm2711_gcc-8.4.0_musl.Linux-x86_64.tar.xz || curl -fL -o sdk.tar.xz https://downloads.openwrt.org/releases/21.02-SNAPSHOT/targets/bcm27xx/bcm2711/openwrt-sdk-21.02-SNAPSHOT-bcm27xx-bcm2711_gcc-8.4.0_musl.Linux-x86_64.tar.xz
-fi
 
 
 read -p "请输入后台地址 [回车默认10.0.0.1]: " ip
@@ -101,6 +115,8 @@ ip=${ip:-"10.0.0.1"}
 echo "您的后台地址为: $ip"
 cp -rf devices/common/* ./
 cp -rf devices/$firmware/* ./
+./scripts/feeds update -a
+cp -Rf ./diy/* ./
 if [ -f "devices/common/diy.sh" ]; then
 		chmod +x devices/common/diy.sh
 		/bin/bash "devices/common/diy.sh"
@@ -109,27 +125,23 @@ if [ -f "devices/$firmware/diy.sh" ]; then
 		chmod +x devices/$firmware/diy.sh
 		/bin/bash "devices/$firmware/diy.sh"
 fi
-cp -Rf ./diy/* ./
 if [ -f "devices/common/default-settings" ]; then
-	sed -i 's/10.0.0.1/$ip/' package/*/*/my-default-settings/files/etc/uci-defaults/99-default-settings
+	sed -i 's/10.0.0.1/$ip/' devices/common/default-settings
+	cp -f devices/common/default-settings package/*/*/default-settings/root/etc/uci-defaults/99-default-settings
 fi
 if [ -f "devices/$firmware/default-settings" ]; then
-	sed -i "s/10.0.0.1/$ip/" devices/$firmware/default-settings
-	cat devices/$firmware/default-settings >> package/*/*/my-default-settings/files/etc/uci-defaults/99-default-settings
+	sed -i 's/10.0.0.1/$ip/' devices/$firmware/default-settings
+	cat -f devices/$firmware/default-settings >> package/*/*/default-settings/root/etc/uci-defaults/99-default-settings
 fi
 if [ -n "$(ls -A "devices/common/patches" 2>/dev/null)" ]; then
-          find "devices/common/patches" -type f -name '*.patch' ! -name '*.revert.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "cat '%'  | patch -d './' -p1 --forward"
+          find "devices/common/patches" -type f -name '*.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "cat '%'  | patch -d './' -p1 --forward"
 fi
 if [ -n "$(ls -A "devices/$firmware/patches" 2>/dev/null)" ]; then
-          find "devices/$firmware/patches" -type f -name '*.patch' ! -name '*.revert.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "cat '%'  | patch -d './' -p1 --forward"
+          find "devices/$firmware/patches" -type f -name '*.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "cat '%'  | patch -d './' -p1 --forward"
 fi
 cp devices/common/.config .config
 echo >> .config
 cat devices/$firmware/.config >> .config
-make defconfig
-for i in $(make --file=preset_pkg.mk presetpkg); do
-	sed -i "\$a CONFIG_PACKAGE_$i=y" .config
-done
 make menuconfig
 echo
 echo
@@ -142,10 +154,9 @@ echo "                      *****5秒后开始编译*****
 echo
 echo
 echo
-sleep 3s
+sleep 5s
 
-make -j$(($(nproc)+1)) download -j$(($(nproc)+1)) &
-make -j$(($(nproc)+1)) || make -j1 V=s
+make -j$(($(nproc)+1)) download v=s ; make -j$(($(nproc)+1)) || make -j1 V=s
 
 if [ "$?" == "0" ]; then
 echo "
